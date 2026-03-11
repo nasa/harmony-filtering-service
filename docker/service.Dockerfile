@@ -2,56 +2,45 @@
 # │ docker/service.Dockerfile                                        │
 # └───────────────────────────────────────────────────────────────────┘
 
-# 1) Base image
-FROM ghcr.io/osgeo/gdal:alpine-small-3.9.3
+# Base image
+# FROM ghcr.io/osgeo/gdal:alpine-small-3.9.3
 
-# 2) System deps & Python
-RUN apk add --no-cache \
-        bash build-base gcc g++ gfortran openblas-dev cmake \
-        python3 python3-dev libffi-dev netcdf-dev libxml2-dev \
-        libxslt-dev libjpeg-turbo-dev zlib-dev hdf5 hdf5-dev
+FROM python:3.12-slim
 
-# 3) Create & activate virtualenv
-RUN python3 -m venv /service-env
-ENV PATH="/service-env/bin:${PATH}"
-RUN python3 -m ensurepip --upgrade
+# Passing version
+ARG SERVICE_VERSION
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=$SERVICE_VERSION
 
-# 4) Install your runtime Python packages
-RUN pip3 install --no-cache-dir \
-    harmony-service-lib \
-    numpy \
-    xarray \
-    netCDF4 \
-    matplotlib \
-    jsonschema \
-    earthaccess \
-    gdal==3.9.3 \
-    cftime
+RUN apt-get update \
+     && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+    gcc \
+    libnetcdf-dev \
+    && pip3 install --no-cache-dir --upgrade pip cython uv \
+    && apt-get purge -y --auto-remove gcc \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# 5) Non-root user
-RUN adduser -D -s /bin/sh -h /home/dockeruser -u 1000 dockeruser
-ENV HOME=/home/dockeruser
+RUN adduser --quiet --disabled-password --shell /bin/sh \
+--home /home/dockeruser --gecos "" --uid 1000 dockeruser
 
-# 6) Prepare workdir
-USER root
 RUN mkdir -p /worker \
     && mkdir -p /worker/data/in_data /worker/data/out_data \
     && chown -R dockeruser:dockeruser /worker
-USER dockeruser
+
 WORKDIR /worker
 
-# 7) Copy your code & config
-COPY --chown=dockeruser src/harmony_filtering_service/ /worker/harmony_filtering_service/
-COPY --chown=dockeruser config/                    /worker/config/
+COPY --chown=dockeruser:dockeruser pyproject.toml README.md LICENSE ./
+COPY --chown=dockeruser:dockeruser src ./
+COPY --chown=dockeruser config ./config
+COPY --chown=dockeruser:dockeruser uv.lock ./
+COPY --chown=dockeruser:dockeruser docker/docker-entrypoint.sh ./
 
-# 8) Make entrypoint available in WORKDIR (for sidecar exec)
-COPY --chown=dockeruser docker/docker-entrypoint.sh /worker/docker-entrypoint.sh
-RUN chmod +x /worker/docker-entrypoint.sh
+USER dockeruser
+RUN uv sync --frozen --no-dev
+ENV PATH="/worker/.venv/bin:$PATH"
 
-# 9) Also install entrypoint into PATH
-COPY --chown=dockeruser docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
 
-# 10) Wire up entrypoint + default command
+# Wire up entrypoint + default command
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["filter"]

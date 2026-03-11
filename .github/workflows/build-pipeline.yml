@@ -1,0 +1,64 @@
+# This is the main build pipeline that verifies and publishes the software
+name: Build Harmony filtering image
+
+on:
+  pull_request:
+    branches: [develop, main, 'release/**']
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+rc[0-9]+'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Determine version
+        id: version
+        run: |
+          SERVICE_VERSION="$(uv tool run hatch version)"
+          echo "service_version=$SERVICE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.service_version }}
+            type=raw,value=uat,enable=${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref_name, 'rc') }}
+            type=raw,value=ops,enable=${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, 'rc') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, 'rc') }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          build-args: |
+            SERVICE_VERSION=${{ steps.version.outputs.service_version }}
+          push: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+          pull: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

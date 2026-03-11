@@ -76,4 +76,5 @@ The **Harmony Filtering Service** is a microservice in the NASA Harmony ecosyste
 
 ## Testing
    ```bash
-    poetry run pytest
+    uv run pytest
+   ```
