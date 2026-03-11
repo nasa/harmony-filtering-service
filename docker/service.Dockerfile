@@ -3,8 +3,6 @@
 # └───────────────────────────────────────────────────────────────────┘
 
 # Base image
-# FROM ghcr.io/osgeo/gdal:alpine-small-3.9.3
-
 FROM python:3.12-slim
 
 # Passing version
