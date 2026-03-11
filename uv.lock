@@ -668,7 +668,7 @@ wheels = [
 ]
 
 [[package]]
-name = "harmony-filtering-service"
+name = "harmony-filtering"
 source = { editable = "." }
 dependencies = [
     { name = "earthaccess" },
