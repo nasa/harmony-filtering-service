@@ -64,8 +64,9 @@ def test_parse_full_path():
     assert grp == "product"
     assert var == "vertical_column_stratosphere"
 
-    with pytest.raises(Exception):
-        core.parse_full_path("invalidformat")
+    # No longer raises an exception for root variables
+    #with pytest.raises(Exception):
+    #    core.parse_full_path("invalidformat")
 
 
 def test_process_products(sample_nc_file):
@@ -127,7 +128,7 @@ def test_process_products(sample_nc_file):
     original_ds.close()
 
     # Run the processing function which applies the filter and creates the filtered file.
-    core.process_products(settings, config)
+    core.process_products(settings, config, os.path.basename(sample_nc_file), "product/vertical_column_stratosphere")
 
     # Build the expected filtered file path based on the input file's name.
     base_name = os.path.splitext(os.path.basename(sample_nc_file))[0]

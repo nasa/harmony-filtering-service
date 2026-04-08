@@ -443,5 +443,76 @@
         "excluded_variables": []
       }
     }
+  },
+  "MUR": {
+    "filters": {
+      "pixel_filter": [
+        {
+          "target_var": "analysed_sst",
+          "criteria_var": "mask",
+          "operator": "equal-to",
+          "threshold": "2",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "analysed_sst",
+          "criteria_var": "mask",
+          "operator": "equal-to",
+          "threshold": "9",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "analysed_sst",
+          "criteria_var": "analysis_error",
+          "operator": "less-than-or-equal-to",
+          "threshold": "0.361",
+          "criteria_var_AND": "analysed_sst",
+          "operator_AND": "less-than",
+          "threshold_AND": "271.65",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "sst_anomaly",
+          "criteria_var": "mask",
+          "operator": "equal-to",
+          "threshold": "2",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "sst_anomaly",
+          "criteria_var": "mask",
+          "operator": "equal-to",
+          "threshold": "9",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "sst_anomaly",
+          "criteria_var": "analysis_error",
+          "operator": "less-than-or-equal-to",
+          "threshold": "0.361",
+          "criteria_var_AND": "analysed_sst",
+          "operator_AND": "less-than",
+          "threshold_AND": "271.65",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "sea_ice_fraction",
+          "criteria_var": "mask",
+          "operator": "not-equal-to",
+          "threshold": "9",
+          "target_value": "nan",
+          "level": "all"
+        }
+      ],
+      "variable_exclusion": {
+        "excluded_variables": []
+      }
+    }
   }
 }

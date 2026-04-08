@@ -35,7 +35,7 @@ The **Harmony Filtering Service** is a microservice in the NASA Harmony ecosyste
 
 ### Prerequisites
 
-- **Python 3.9+** (if Python-based)
+- **Python 3.11+**
 - **Docker & Docker Compose** (for containerized local runs)
 - **Access to Harmony’s EDL credentials** (for upstream authentication)
 
@@ -43,37 +43,52 @@ The **Harmony Filtering Service** is a microservice in the NASA Harmony ecosyste
 
 1. **Clone the Harmony repo**
    ```bash
-   git clone https://github.com/nasa/harmony.git
-   cd harmony/filtering-service
+   git clone https://github.com/nasa/harmony-filtering-service.git
+   cd harmony-filtering-service
 
 2. **Install Python deps**
    ```bash
-   pip install -r requirements.txt
+   python -m venv venv
+   source venv/bin/activate
+   python -m pip install -e ".[dev]"
+   # You may also wish to install the dependencies for the Jupyter notebook
+   python -m pip install -r docs/requirements.txt
 
 3. **Build Docker Image**
    ```bash
-   docker build -t harmony-filtering-service:local .
+   ./bin/build-image
+   # or if you prefer to build with the docker command directly
+   docker build -t harmony-filtering-service:local -f docker/service.Dockerfile .
 
 ### Running the Service
 
 #### Locally via Docker
-    export EDL_USER=<your-user>
-    export EDL_PASSWORD=<your-pass>
-    export HARMONY_HOST_URL=https://harmony.uat.earthdata.nasa.gov
-    docker run --rm \
-      -p 3000:3000 \
-      -e EDL_USER \
-      -e EDL_PASSWORD \
-      -e HARMONY_HOST_URL \
-      harmony-filtering-service:local
+   ```bash
+   export EDL_USER=<your-user>
+   export EDL_PASSWORD=<your-pass>
+   export HARMONY_HOST_URL=https://harmony.uat.earthdata.nasa.gov
+   docker run --rm \
+     -p 3000:3000 \
+     -e EDL_USER \
+     -e EDL_PASSWORD \
+     -e HARMONY_HOST_URL \
+     harmony-filtering-service:local
+   ```
 
 #### Local without Docker
-  FLASK_APP=filter_service.py \
-    EDL_USER=$EDL_USER \
-    EDL_PASSWORD=$EDL_PASSWORD \
-    HARMONY_HOST_URL=$HARMONY_HOST_URL \
-    flask run --port 3000
+   ```bash
+   FLASK_APP=filter_service.py \
+     EDL_USER=$EDL_USER \
+     EDL_PASSWORD=$EDL_PASSWORD \
+     HARMONY_HOST_URL=$HARMONY_HOST_URL \
+     flask run --port 3000
+   ```
 
 ## Testing
-   ```bash
-    poetry run pytest
+To run the unit tests, you will need to set the EARTHDATA_USERNAME and EARTHDATA_PASSWORD environment variables in your shell environment for one of the tests that downloads the granule file just-in-time.
+
+To then actually run the tests, run the following commands:
+```bash
+./bin/build-image
+./bin/run-test
+```

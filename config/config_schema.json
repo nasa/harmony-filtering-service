@@ -177,8 +177,55 @@
         }
       },
       "required": ["filters"]
+    },
+    "MUR": {
+      "type": "object",
+      "properties": {
+        "filters": {
+          "type": "object",
+          "properties": {
+            "pixel_filter": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "target_var": { "type": "string" },
+                  "criteria_var": { "type": "string" },
+                  "operator": { "type": "string" },
+                  "threshold": { "type": "string" },
+                  "target_value": { "type": "string" },
+                  "level": { "type": "string" },
+                  "criteria_var_AND": { "type": "string" },
+                  "operator_AND": { "type": "string" },
+                  "threshold_AND": { "type": "string" }
+                },
+                "required": [
+                  "target_var",
+                  "criteria_var",
+                  "operator",
+                  "threshold",
+                  "target_value",
+                  "level"
+                ]
+              }
+            },
+            "variable_exclusion": {
+              "type": "object",
+              "properties": {
+                "excluded_variables": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "required": ["excluded_variables"]
+            }
+          },
+          "required": ["pixel_filter", "variable_exclusion"]
+        }
+      },
+      "required": ["filters"]
     }
   },
-  "required": ["O3TOT", "CLDO4", "HCHO", "NO2"],
+  "required": ["O3TOT", "CLDO4", "HCHO", "NO2", "MUR"],
   "additionalProperties": false
 }

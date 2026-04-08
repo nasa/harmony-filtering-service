@@ -41,9 +41,11 @@ class TestParseGranuleFilename(unittest.TestCase):
         result = parse_granule_filename(filename)
         self.assertEqual(result, expected)
 
-    def test_parse_filename_with_missing_parts_raises_index_error(self):
+    def test_parse_filename_with_missing_parts_raises_stop_iteration(self):
         filename = "TEMPO_NO2"
-        with self.assertRaises(IndexError):
+        # As of python3.11, the next statement in this function raises StopIteration
+        # on incomplete filenames
+        with self.assertRaises(StopIteration):
             parse_granule_filename(filename)
 
 
