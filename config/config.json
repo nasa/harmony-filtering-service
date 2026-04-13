@@ -511,7 +511,7 @@
         }
       ],
       "variable_exclusion": {
-        "excluded_variables": []
+        "excluded_variables": ["analysis_error", "mask", "dt_1km_data", "analysed_sst", "sea_ice_fraction", "sst_anomaly"]
       }
     }
   }

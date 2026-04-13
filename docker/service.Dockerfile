@@ -18,6 +18,7 @@ RUN python3 -m ensurepip --upgrade
 
 # 4) Install your runtime Python packages
 RUN pip3 install --no-cache-dir \
+    dask \
     harmony-service-lib \
     numpy \
     xarray \

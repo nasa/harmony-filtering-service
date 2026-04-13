@@ -157,7 +157,7 @@ def copy_group(
         full_var_path = f"{current_group}/{var_name}" if current_group else var_name
 
         # Skip this variable if it is in the exclusion list
-        if full_var_path in excluded_variables:
+        if full_var_path in excluded_variables and full_var_path not in filtered_primary:
             log_msg(
                 f"Skipping excluded variable '{full_var_path}' in group '{current_group}'.",
                 logger,
@@ -325,9 +325,10 @@ def process_products(
     log_level = settings["logging"]["log_level"]
 
     print("=== Entered process_products ===")
-    print(
-        f"[DEBUG] Output directory contents before writing: {os.listdir(output_dir) if os.path.exists(output_dir) else 'Directory does not exist'}"
-    )
+    if log_level == "DEBUG":
+        print(
+            f"[DEBUG] Output directory contents before writing: {os.listdir(output_dir) if os.path.exists(output_dir) else 'Directory does not exist'}"
+        )
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -382,28 +383,36 @@ def process_products(
             if rule["level"] == "all" or rule["level"] == granule_level
         ]
 
-        primary_full_paths = {rule["target_var"] for rule in applicable}
-        secondary_full_paths = {rule["criteria_var"] for rule in applicable}
+        primary_full_paths = {rule["target_var"] for rule in applicable if rule["target_var"] == myvariable}
+        secondary_full_paths = {rule["criteria_var"] for rule in applicable if rule["target_var"] == myvariable}
         and_full_paths = {rule.get("criteria_var_AND") for rule in applicable if "criteria_var_AND" in rule}
         # this is a no-op if there are no "criteria_var_AND" rules,
         # since and_full_paths would be the empty set
         secondary_full_paths = secondary_full_paths.union(and_full_paths)
+        all_paths = primary_full_paths.union(secondary_full_paths)
 
         # If the variable is in the root group, grp will be "/"
         groups_to_open = set()
-        for fp in primary_full_paths.union(secondary_full_paths):
-            grp, _ = parse_full_path(fp)
+        vars_needed_per_group: Dict[str, list] = {}
+        for fp in all_paths:
+            grp, var_name = parse_full_path(fp)
             groups_to_open.add(grp)
+            vars_needed_per_group.setdefault(grp, []).append(var_name)
 
         opened_groups = {
-            grp: xr.open_dataset(file_path, group=grp) for grp in groups_to_open
+            grp: xr.open_dataset(
+                file_path, group=grp, chunks="auto",
+                drop_variables=[v for v in xr.open_dataset(file_path, group=grp).data_vars
+                                if v not in vars_needed_per_group[grp]]
+            )
+            for grp in groups_to_open
         }
 
         # Jackie: Refactored this line to be more readable
         primary_vars: Dict[str, Any] = {}
         for fp in primary_full_paths:
             grp, var_name = parse_full_path(fp)
-            if var_name not in excluded_variables:
+            if var_name not in excluded_variables or var_name == myvariable:
                 primary_vars[fp] = opened_groups[grp][var_name]
 
         print(f"[SSSyed] '{primary_vars}'...")
@@ -428,16 +437,17 @@ def process_products(
             for fp in secondary_full_paths
         }
 
-        log_msg("Before applying filters:", logger)
-        for fp, arr in primary_vars.items():
-            min_val = float(arr.min().values)
-            max_val = float(arr.max().values)
-            total_nan = int(arr.isnull().sum())
-            _, var_name = parse_full_path(fp)
-            log_msg(
-                f"  Primary variable '{var_name}': min = {min_val}, max = {max_val}, total NaNs = {total_nan}",
-                logger,
-            )
+        if log_level == "DEBUG":
+            log_msg("Before applying filters:", logger)
+            for fp, arr in primary_vars.items():
+                min_val = float(arr.min().values)
+                max_val = float(arr.max().values)
+                total_nan = int(arr.isnull().sum())
+                _, var_name = parse_full_path(fp)
+                log_msg(
+                    f"  Primary variable '{var_name}': min = {min_val}, max = {max_val}, total NaNs = {total_nan}",
+                    logger,
+                )
 
         any_filter_applied = False
         for idx, rule in enumerate(product_filters, start=1):
@@ -450,7 +460,7 @@ def process_products(
                     f"Skipping filter rule '{rule_key}' due to level mismatch.", logger
                 )
                 continue
-            if primary_full_path in excluded_variables:
+            if primary_full_path != myvariable and primary_full_path in excluded_variables:
                 log_msg(
                     f"Skipping filter rule '{rule_key}' as primary variable '{primary_full_path}' is excluded.",
                     logger,
@@ -501,19 +511,19 @@ def process_products(
         if not any_filter_applied:
             log_msg("No filters applied. Copying original data.", logger)
 
-        log_msg("After applying filters:", logger)
-        for fp, arr in primary_vars.items():
-            min_val = float(arr.min().values)
-            max_val = float(arr.max().values)
-            total_nan = int(arr.isnull().sum())
-            _, var_name = parse_full_path(fp)
-            log_msg(
-                f"  Primary variable '{var_name}': min = {min_val}, max = {max_val}, total NaNs = {total_nan}",
-                logger,
-            )
-
-        print("SRR_Primary_vars keys:", list(primary_vars.keys()))
-        print("Syed_Checking key:", myvariable)
+        if log_level == "DEBUG":
+            log_msg("After applying filters:", logger)
+            for fp, arr in primary_vars.items():
+                min_val = float(arr.min().values)
+                max_val = float(arr.max().values)
+                total_nan = int(arr.isnull().sum())
+                _, var_name = parse_full_path(fp)
+                log_msg(
+                    f"  Primary variable '{var_name}': min = {min_val}, max = {max_val}, total NaNs = {total_nan}",
+                    logger,
+                )
+            print("SRR_Primary_vars keys:", list(primary_vars.keys()))
+            print("Syed_Checking key:", myvariable)
 
         # After logging "After applying filters:"
         if all_primary_vars_blank(primary_vars, myvariable):
@@ -530,6 +540,10 @@ def process_products(
             log_msg("=" * 60, logger)
             logger.close()
             continue  # 🚫 Do not proceed to file creation
+
+        # Close xarray handles before copying groups
+        for ds in opened_groups.values():
+            ds.close()
 
         base_name = os.path.basename(os.path.splitext(file_path)[0])
         new_file_path = os.path.join(output_dir, base_name + "_filtered.nc")
