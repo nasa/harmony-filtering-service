@@ -1,3 +1,11 @@
+
+## v0.2.0 - 2026-04-14
+- Added support for PODAAC GHRSST MUR and MUR25 collections
+- Added support for filter rules with "and" logical operators
+- Various fixes and updates for unit tests
+
+## v0.1.1 - 2026-03-09
+
 ## v0.1.0 — 2025-04-28
 - Initial release
 - Added Harmony‐service repo scaffold:

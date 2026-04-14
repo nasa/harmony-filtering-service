@@ -1,6 +1,6 @@
 [project]
 name = "harmony-filtering"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = [
     { name = "Syed Rizvi", email = "syed.r.rizvi@nasa.gov" }
@@ -8,6 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.13,<4.0.0"
 dependencies = [
+  "dask (>=2026.3.0)",
   "harmony-service-lib (>=2.6.0,<3.0.0)",
   "numpy (>=1.20.0)",
   "xarray (>=2022.11.0)",

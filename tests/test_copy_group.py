@@ -29,6 +29,7 @@ class MockVariable:
         self.name = name
         self.datatype = datatype
         self.dimensions = dimensions
+        self.shape = data.shape
         self._data = data
         self._attrs = attrs or {}
         self._filters = filters or {}
@@ -130,6 +131,7 @@ class TestCopyGroup(unittest.TestCase):
         current_group = ""
         excluded_variables = {"var2"}
         filtered_primary = {"var1": mock.Mock(values=np.arange(10) * 2)}
+        filtered_primary["var1"].isnull.return_value = [False] * 10
 
         copy_group(src, dst, current_group, filtered_primary, excluded_variables)
 

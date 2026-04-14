@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # build & run tests in one go
 ./bin/build-test "$@"
-docker run --rm harmony/filtering-test:${1:-$(<docker/service_version.txt)}
+docker run -e EARTHDATA_USERNAME -e EARTHDATA_PASSWORD --rm harmony/filtering-test:${1:-$(<docker/service_version.txt)}
