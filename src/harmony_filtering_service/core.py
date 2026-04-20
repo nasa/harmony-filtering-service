@@ -15,7 +15,7 @@ import xarray as xr
 from netCDF4 import Dataset as ncDataset
 
 from harmony_filtering_service.exceptions import FilteringUtilityError
-from harmony_filtering_service.logger import get_logger, log_msg
+from harmony_filtering_service.logger import get_logger, log_msg, Logger, DummyLogger
 
 
 def all_primary_vars_blank(
@@ -68,6 +68,22 @@ def parse_granule_filename(filename: str) -> Dict[str, str]:
         "sequence": sequence,
     }
 
+def parse_mur_filename(filename: str) -> Dict[str, str]:
+    """Parse a MUR/MUR25 filename and extract metadata."""
+    parts = os.path.splitext(filename)[0].split("-")
+    timestamp = parts[0]
+    level = parts[2].split("_")[0]
+    product = parts[4]
+    version = parts[-1]
+    return {
+        "instrument": "GHRSST MUR",
+        "product": product,
+        "level": level,
+        "version": version,
+        "timestamp": timestamp,
+        "sequence": "",
+    }
+
 
 def parse_full_path(full_path: str) -> tuple[str, str]:
     """
@@ -80,17 +96,29 @@ def parse_full_path(full_path: str) -> tuple[str, str]:
         full_path: A string in the format "group/variable".
 
     Returns:
-        A tuple (group, variable_name).
-
-    Raises:
-        FilteringUtilityError: If the input does not contain a slash.
+        A tuple (group, variable_name). If the variable is in the root group,
+        "/" is returned for the group name.
     """
     parts = full_path.split("/")
     if len(parts) < 2:
-        raise FilteringUtilityError(
-            f"Full path '{full_path}' is not in the expected 'group/variable' format."
-        )
-    return parts[0], parts[1]
+        group = "/"
+        var_name = parts[0]
+    else:
+        group = "/".join(parts[:-1])
+        var_name = parts[-1]
+    return group, var_name
+
+
+def get_ncattr(var: Any, attr: str, dft: Any | None = None) -> Any | None:
+    return var.getncattr(attr) if attr in var.ncattrs() else dft
+
+
+def handle_threshold(threshold: Any) -> list[float]:
+    """Normalize a filter rule threshold from config.json into a list[float]"""
+    if isinstance(threshold, list):
+        return [float(t) for t in threshold]
+    else:
+        return [float(threshold)]
 
 
 def copy_group(
@@ -129,7 +157,7 @@ def copy_group(
         full_var_path = f"{current_group}/{var_name}" if current_group else var_name
 
         # Skip this variable if it is in the exclusion list
-        if full_var_path in excluded_variables:
+        if full_var_path in excluded_variables and full_var_path not in filtered_primary:
             log_msg(
                 f"Skipping excluded variable '{full_var_path}' in group '{current_group}'.",
                 logger,
@@ -155,9 +183,7 @@ def copy_group(
         complevel = filters.get("complevel", None)
         shuffle = filters.get("shuffle", False)
         # Check if a fill value is defined for the variable
-        fill_value = (
-            var.getncattr("_FillValue") if "_FillValue" in var.ncattrs() else None
-        )
+        fill_value = get_ncattr(var, "_FillValue")
 
         # Create the variable in the destination file with similar settings
         if zlib_flag:
@@ -201,6 +227,15 @@ def copy_group(
 
         if key in filtered_primary:
             data = filtered_primary[key].values
+            # np.nan will be cast to 0 when writing the data to
+            # the netcdf dataset if the primary variable is an int*
+            # set it to the _FillValue manually
+            if "int" in str(var.datatype) and fill_value is not None:
+                # the "or" is redundant but satisfies type checker
+                scale = get_ncattr(var, "scale_factor", 1.0) or 1.0
+                offset = get_ncattr(var, "add_offset", 0.0) or 0.0
+                cast_fillval = scale * float(fill_value) + offset
+                data = np.array(np.where(filtered_primary[key].isnull(), cast_fillval, data))
             if data.shape != dst_var.shape:
                 data = np.squeeze(data)
             dst_var[:] = data
@@ -227,6 +262,55 @@ def copy_group(
         )
 
 
+def build_filter(
+        criteria_arr: xr.DataArray,
+        operator: str,
+        threshold: list[float],
+        rule_key: int,
+) -> xr.DataArray:
+    if operator == "greater-than":
+        return criteria_arr > threshold[0]
+    elif operator == "less-than":
+        return criteria_arr < threshold[0]
+    elif operator == "greater-than-or-equal-to":
+        return criteria_arr >= threshold[0]
+    elif operator == "less-than-or-equal-to":
+        return criteria_arr <= threshold[0]
+    elif operator == "equal-to":
+        return criteria_arr == threshold[0]
+    elif operator == "not-equal-to":
+        return criteria_arr != threshold[0]
+    elif operator == "in":
+        return ~criteria_arr.isin(
+            threshold
+        )  # TRUE where NOT in [0,1,2,5]
+    else:
+        raise FilteringUtilityError(
+            f"Unsupported operator '{operator}' in rule '{rule_key}'."
+        )
+
+
+def apply_mask(
+        target_arr: xr.DataArray,
+        mask: xr.DataArray,
+        target_value: float,
+        rule_key: int,
+        filter_name: str,
+        logger: Logger | DummyLogger,
+) -> xr.DataArray:
+    nan_mask = target_arr.isnull()
+    active_mask = mask & ~nan_mask
+
+    filtered_count = int(active_mask.sum())
+    log_msg(
+        f"Filter rule '{rule_key}': secondary variable '{filter_name}' filtered pixels = {filtered_count}",
+        logger,
+    )
+
+    # Clamp only VALID pixels; never overwrite original NaNs
+    return target_arr.where(~active_mask, other=target_value)
+
+
 def process_products(
     settings: Dict[str, Any], config: Dict[str, Any], clean_fname: str, myvariable: str
 ) -> None:
@@ -241,9 +325,10 @@ def process_products(
     log_level = settings["logging"]["log_level"]
 
     print("=== Entered process_products ===")
-    print(
-        f"[DEBUG] Output directory contents before writing: {os.listdir(output_dir) if os.path.exists(output_dir) else 'Directory does not exist'}"
-    )
+    if log_level == "DEBUG":
+        print(
+            f"[DEBUG] Output directory contents before writing: {os.listdir(output_dir) if os.path.exists(output_dir) else 'Directory does not exist'}"
+        )
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -270,7 +355,10 @@ def process_products(
         log_msg(f"File: {file_path}", logger)
 
         filename = os.path.basename(file_path)
-        metadata = parse_granule_filename(filename)
+        if not filename.startswith("TEMPO"):
+            metadata = parse_mur_filename(filename)
+        else:
+            metadata = parse_granule_filename(filename)
         print(f"[INFO] Parsed metadata: {metadata}")
         log_msg("Metadata extracted from filename:", logger)
         log_msg(f"  Instrument: {metadata['instrument']}", logger)
@@ -295,25 +383,37 @@ def process_products(
             if rule["level"] == "all" or rule["level"] == granule_level
         ]
 
-        primary_full_paths = {rule["target_var"] for rule in applicable}
-        secondary_full_paths = {rule["criteria_var"] for rule in applicable}
+        primary_full_paths = {rule["target_var"] for rule in applicable if rule["target_var"] == myvariable}
+        secondary_full_paths = {rule["criteria_var"] for rule in applicable if rule["target_var"] == myvariable}
+        and_full_paths = {rule.get("criteria_var_AND") for rule in applicable if "criteria_var_AND" in rule}
+        # this is a no-op if there are no "criteria_var_AND" rules,
+        # since and_full_paths would be the empty set
+        secondary_full_paths = secondary_full_paths.union(and_full_paths)
+        all_paths = primary_full_paths.union(secondary_full_paths)
 
+        # If the variable is in the root group, grp will be "/"
         groups_to_open = set()
-        for fp in primary_full_paths.union(secondary_full_paths):
-            grp, _ = parse_full_path(fp)
+        vars_needed_per_group: Dict[str, list] = {}
+        for fp in all_paths:
+            grp, var_name = parse_full_path(fp)
             groups_to_open.add(grp)
+            vars_needed_per_group.setdefault(grp, []).append(var_name)
 
         opened_groups = {
-            grp: xr.open_dataset(file_path, group=grp) for grp in groups_to_open
+            grp: xr.open_dataset(
+                file_path, group=grp, chunks="auto",
+                drop_variables=[v for v in xr.open_dataset(file_path, group=grp).data_vars
+                                if v not in vars_needed_per_group[grp]]
+            )
+            for grp in groups_to_open
         }
 
-        # Commented on 9/30/25
-        primary_vars = {
-            fp: opened_groups[grp][var_name]
-            for fp in primary_full_paths
-            if (grp := parse_full_path(fp)[0])
-            and (var_name := parse_full_path(fp)[1]) not in excluded_variables
-        }
+        # Jackie: Refactored this line to be more readable
+        primary_vars: Dict[str, Any] = {}
+        for fp in primary_full_paths:
+            grp, var_name = parse_full_path(fp)
+            if var_name not in excluded_variables or var_name == myvariable:
+                primary_vars[fp] = opened_groups[grp][var_name]
 
         print(f"[SSSyed] '{primary_vars}'...")
 
@@ -337,20 +437,21 @@ def process_products(
             for fp in secondary_full_paths
         }
 
-        log_msg("Before applying filters:", logger)
-        for fp, arr in primary_vars.items():
-            min_val = float(arr.min().values)
-            max_val = float(arr.max().values)
-            total_nan = int(arr.isnull().sum())
-            _, var_name = parse_full_path(fp)
-            log_msg(
-                f"  Primary variable '{var_name}': min = {min_val}, max = {max_val}, total NaNs = {total_nan}",
-                logger,
-            )
+        if log_level == "DEBUG":
+            log_msg("Before applying filters:", logger)
+            for fp, arr in primary_vars.items():
+                min_val = float(arr.min().values)
+                max_val = float(arr.max().values)
+                total_nan = int(arr.isnull().sum())
+                _, var_name = parse_full_path(fp)
+                log_msg(
+                    f"  Primary variable '{var_name}': min = {min_val}, max = {max_val}, total NaNs = {total_nan}",
+                    logger,
+                )
 
         any_filter_applied = False
         for idx, rule in enumerate(product_filters, start=1):
-            rule_key = str(idx)
+            rule_key = idx
             primary_full_path = rule["target_var"]
             secondary_full_path = rule["criteria_var"]
             filter_level = rule["level"]
@@ -359,7 +460,7 @@ def process_products(
                     f"Skipping filter rule '{rule_key}' due to level mismatch.", logger
                 )
                 continue
-            if primary_full_path in excluded_variables:
+            if primary_full_path != myvariable and primary_full_path in excluded_variables:
                 log_msg(
                     f"Skipping filter rule '{rule_key}' as primary variable '{primary_full_path}' is excluded.",
                     logger,
@@ -367,98 +468,62 @@ def process_products(
                 continue
 
             operator = rule["operator"]
-            threshold = rule["threshold"]  # can be float or list
+            thresholds = handle_threshold(rule["threshold"])  # normalize value to list[float]
             target_value = (
                 float(rule["target_value"]) if rule["target_value"] != "nan" else np.nan
             )
 
-            # Normalize threshold: if list, keep it as list; if single value, cast to float
-            if isinstance(threshold, list):
-                thresholds = [float(t) for t in threshold]
-            else:
-                thresholds = [float(threshold)]
-
-            if primary_full_path in primary_vars:
-                primary_array = primary_vars[primary_full_path]
-                secondary_array = secondary_vars[secondary_full_path]
-                if operator == "greater-than":
-                    mask = secondary_array > thresholds[0]
-                elif operator == "less-than":
-                    mask = secondary_array < thresholds[0]
-                elif operator == "greater-than-or-equal-to":
-                    mask = secondary_array >= thresholds[0]
-                elif operator == "less-than-or-equal-to":
-                    mask = secondary_array <= thresholds[0]
-                elif operator == "equal-to":
-                    mask = secondary_array == thresholds[0]
-                elif operator == "not-equal-to":
-                    mask = secondary_array != thresholds[0]
-                elif operator == "in":
-                    mask = ~secondary_array.isin(
-                        thresholds
-                    )  # TRUE where NOT in [0,1,2,5]
-                else:
-                    raise FilteringUtilityError(
-                        f"Unsupported operator '{operator}' in rule '{rule_key}'."
-                    )
-
-                sec_non_nan_count = int(primary_array.where(mask).notnull().sum())
-                log_msg(
-                    f"Filter rule '{rule_key}': secondary variable '{secondary_full_path}' non-nan count = {sec_non_nan_count}",
-                    logger,
+            if primary_full_path in primary_vars and secondary_full_path in secondary_vars:
+                mask_arr = build_filter(
+                    secondary_vars[secondary_full_path],
+                    operator,
+                    thresholds,
+                    rule_key,
                 )
-                if sec_non_nan_count == 0:
+                # Allow for combining a single additional criteria in a rule with logical &
+                # This can be made more extensible with a refactoring of the config schema
+                if "criteria_var_AND" in rule and "threshold_AND" in rule and "operator_AND" in rule:
+                    criteria_var_and = rule["criteria_var_AND"]
+                    operator_and = rule["operator_AND"]
+                    threshold_and = handle_threshold(rule["threshold_AND"])
+                    mask_b = build_filter(
+                        secondary_vars[criteria_var_and],
+                        operator_and,
+                        threshold_and,
+                        rule_key,
+                    )
+                    mask_arr = mask_b & mask_arr
+
+                if not mask_arr.any():
                     log_msg("No pixels to filter for this rule. Skipping.", logger)
                     continue
-                # if np.isnan(target_value):
-                #     print(
-                #         f"[FILTER] Applying NaN mask to variable '{primary_full_path}'"
-                #     )
-                #     filtered_array = primary_array.where(~mask)
-                # else:
-                #     print(
-                #         f"[FILTER] Clamping values of '{primary_full_path}' to {target_value}"
-                #     )
-                #     non_nan_mask = primary_array.notnull()
-                #     filtered_array = primary_array.where(
-                #         ~(mask & non_nan_mask), target_value
-                #     )
 
-                # --- SAFE NAN-PROTECTING FILTER ---
-                nan_mask = primary_array.isnull()
-
-                if np.isnan(target_value):
-                    # Apply NaN ONLY to mask pixels that were not originally NaN
-                    filtered_array = xr.where(mask & ~nan_mask, np.nan, primary_array)
-
-                else:
-                    # Clamp only VALID pixels; never overwrite original NaNs
-                    filtered_array = xr.where(
-                        nan_mask,
-                        np.nan,
-                        xr.where(mask & ~nan_mask, target_value, primary_array),
-                    )
-
-                primary_vars[primary_full_path] = filtered_array
-
+                primary_vars[primary_full_path] = apply_mask(
+                    primary_vars[primary_full_path],
+                    mask_arr,
+                    target_value,
+                    rule_key,
+                    secondary_full_path,
+                    logger,
+                )
                 any_filter_applied = True
 
         if not any_filter_applied:
             log_msg("No filters applied. Copying original data.", logger)
 
-        log_msg("After applying filters:", logger)
-        for fp, arr in primary_vars.items():
-            min_val = float(arr.min().values)
-            max_val = float(arr.max().values)
-            total_nan = int(arr.isnull().sum())
-            _, var_name = parse_full_path(fp)
-            log_msg(
-                f"  Primary variable '{var_name}': min = {min_val}, max = {max_val}, total NaNs = {total_nan}",
-                logger,
-            )
-
-        print("SRR_Primary_vars keys:", list(primary_vars.keys()))
-        print("Syed_Checking key:", myvariable)
+        if log_level == "DEBUG":
+            log_msg("After applying filters:", logger)
+            for fp, arr in primary_vars.items():
+                min_val = float(arr.min().values)
+                max_val = float(arr.max().values)
+                total_nan = int(arr.isnull().sum())
+                _, var_name = parse_full_path(fp)
+                log_msg(
+                    f"  Primary variable '{var_name}': min = {min_val}, max = {max_val}, total NaNs = {total_nan}",
+                    logger,
+                )
+            print("SRR_Primary_vars keys:", list(primary_vars.keys()))
+            print("Syed_Checking key:", myvariable)
 
         # After logging "After applying filters:"
         if all_primary_vars_blank(primary_vars, myvariable):
@@ -475,6 +540,10 @@ def process_products(
             log_msg("=" * 60, logger)
             logger.close()
             continue  # 🚫 Do not proceed to file creation
+
+        # Close xarray handles before copying groups
+        for ds in opened_groups.values():
+            ds.close()
 
         base_name = os.path.basename(os.path.splitext(file_path)[0])
         new_file_path = os.path.join(output_dir, base_name + "_filtered.nc")

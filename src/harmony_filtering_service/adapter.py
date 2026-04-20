@@ -132,10 +132,23 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
             # Extract instrument + product right here
             match = re.match(r"([A-Z0-9]+)_([A-Z0-9]+)_L", clean_fname)
             if not match:
-                self.logger.error(
-                    "Could not parse instrument/product from filename: %s", clean_fname
-                )
-                instrument = "UNDEFINED"
+                # Attempt to determine if the product matches the MUR naming convention
+                # if the product is not TEMPO
+                cleaner_fname = re.sub(r"^\d+-", "", clean_fname)
+                # cleaner_fname examples: JPL-L4_GHRSST-SSTfnd-MUR-GLOB-v02.0-fv04.1 or
+                # JPL-L4_GHRSST-SSTfnd-MUR25-GLOB-v02.0-fv04.2
+                match_mur = re.match(r"JPL-L4_GHRSST-SSTfnd-([A-Z0-9]+)-GLOB", cleaner_fname)
+                if not match_mur:
+                    self.logger.error(
+                        "Could not parse instrument/product from filename: %s", clean_fname
+                    )
+
+                    instrument = "UNDEFINED"
+                    product_type = "UNDEFINED"
+                else:
+                    instrument = match_mur.group(1)
+                    # MUR and MUR25 use the same filter rules in the config.json
+                    product_type = "MUR"
                 # return
             else:
                 instrument = match.group(1)
@@ -152,7 +165,7 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
             )
 
             # ─── Case 1: TEMPO instrument → normal filtering ───
-            if instrument == "TEMPO":
+            if instrument in ["TEMPO", "MUR", "MUR25"]:
                 if product_type not in cfg:
                     self.logger.error(
                         "Product type '%s' NOT found in config", product_type
@@ -213,7 +226,7 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
             # ─── Case 2: Other instrument → just stage original ───
             else:
                 self.logger.info(
-                    "Non-TEMPO instrument detected (%s). Skipping filtering.",
+                    "Unrecognized instrument detected (%s). Skipping filtering.",
                     instrument,
                 )
                 final_file = Path(local_in)
