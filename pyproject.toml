@@ -14,7 +14,7 @@ authors = [
 ]
 license = {file = "LICENSE"}
 readme = "README.md"
-requires-python = ">=3.13,<4.0.0"
+requires-python = ">=3.12,<4.0.0"
 dependencies = [
   "dask (>=2026.3.0)",
   "harmony-service-lib (>=2.6.0,<3.0.0)",
@@ -56,7 +56,7 @@ version_scheme = "no-guess-dev"
 
 [tool.mypy]
 # Target Python version
-python_version        = "3.13"
+python_version        = "3.12"
 strict                = false
 ignore_missing_imports = true
 # Skip tests entirely
@@ -64,6 +64,17 @@ exclude = "tests/.*"
 
 [tool.pylint.'MASTER']
 disable = ["C0114", "C0115", "C0116"]
+
+[tool.ruff]
+builtins = ["ellipsis"]
+exclude = [
+  ".eggs",
+  "doc",
+  "_typed_ops.pyi",
+]
+# Allow lines to be as long as 100.
+line-length = 100
+target-version = "py312"
 
 [tool.ruff.lint]
 ignore = [
