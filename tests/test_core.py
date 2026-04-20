@@ -69,6 +69,7 @@ def test_parse_full_path():
     #    core.parse_full_path("invalidformat")
 
 
+@pytest.mark.integration
 def test_process_products(sample_nc_file):
     """
     Integration test for core.process_products using a sample netCDF file and a filtering rule.

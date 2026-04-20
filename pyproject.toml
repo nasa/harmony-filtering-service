@@ -82,3 +82,8 @@ ignore = [
     "E501",  # line too long - let ruff format handle it
     "E731",  # do not assign a lambda expression, use a def
 ]
+
+[tool.pytest]
+markers = [
+    "integration: marks tests as integration tests"
+]
