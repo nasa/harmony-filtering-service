@@ -28,8 +28,10 @@ fi
 ./bin/clean-images
 
 # Build the service image, tagging both with the version and "latest"
+export SERVICE_VERSION=`uv tool run hatch version`
 docker build --platform linux/amd64 \
   -f docker/service.Dockerfile \
+  --build-arg SERVICE_VERSION=$SERVICE_VERSION \
   -t "${IMAGE}:${TAG}" \
   -t "${IMAGE}:latest" \
   .

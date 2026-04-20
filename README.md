@@ -85,10 +85,6 @@ The **Harmony Filtering Service** is a microservice in the NASA Harmony ecosyste
    ```
 
 ## Testing
-To run the unit tests, you will need to set the EARTHDATA_USERNAME and EARTHDATA_PASSWORD environment variables in your shell environment for one of the tests that downloads the granule file just-in-time.
-
-To then actually run the tests, run the following commands:
-```bash
-./bin/build-image
-./bin/run-test
-```
+   ```bash
+    uv run pytest
+   ```
