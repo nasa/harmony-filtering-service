@@ -30,8 +30,10 @@ if [[ -n "$old" && "$DELETE" != "--no-delete" ]]; then
 fi
 
 # Build the test image
+export SERVICE_VERSION=`uv tool run hatch version`
 docker build --platform linux/amd64 \
   -f docker/tests.Dockerfile \
+  --build-arg SERVICE_VERSION=$SERVICE_VERSION \
   -t "${IMAGE}:${TAG}" \
   .
 

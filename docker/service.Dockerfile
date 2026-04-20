@@ -13,7 +13,7 @@ RUN apt-get update \
      && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
     gcc \
     libnetcdf-dev \
-    && pip3 install --no-cache-dir --upgrade pip cython uv \
+    && pip3 install --no-cache-dir --upgrade pip cython uv dask \
     && apt-get purge -y --auto-remove gcc \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

@@ -1,5 +1,4 @@
 TEMPO_*.nc
-tests/
 .git
 .gitignore
 .travis.yaml
