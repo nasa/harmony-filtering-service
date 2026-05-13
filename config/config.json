@@ -571,7 +571,7 @@
         {
           "target_var": "analysed_sst",
           "criteria_var": "analysis_error",
-          "operator": "greater-than-equal-to",
+          "operator": "greater-than-or-equal-to",
           "threshold": "0.99",
           "target_value": "nan",
           "level": "all"

@@ -95,10 +95,11 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
             )
 
         # 1) Identify the product type etc. using the collection short name
-        metadata = identify_dataset(source.get("shortName", ""), source.get("versionId"))
-        product_type = metadata['product']
+        metadata = identify_dataset(source["shortName"], source["versionId"])
+        instrument = metadata["instrument"]
+        product_type = metadata["product"]
         self.logger.info(
-            f"Instrument: {metadata['instrument']}, Product: {product_type}"
+            f"Instrument: {instrument}, Product: {product_type}"
         )
 
         # 2) Download into the data dir
@@ -108,7 +109,9 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
         data_dir = Path(settings["data_dir"])
         data_dir.mkdir(parents=True, exist_ok=True)
 
-        asset = next(v for v in item.assets.values() if "data" in (v.roles or []))
+        asset = next((v for v in item.assets.values() if "data" in (v.roles or [])), None)
+        if asset is None:
+            raise FilteringUtilityError("No data asset found in item")
 
         local_in = download(
             asset.href,

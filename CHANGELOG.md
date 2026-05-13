@@ -1,4 +1,8 @@
 
+## v0.3.0 - 2026-05-13
+- Added support for PODAAC's GAMSSA, AVHRRF STAR, AVHRR OI NCEI, and MODIS L3 SST datasets
+- Refactored code for determining dataset-level metadata to use collection short name
+
 ## v0.2.0 - 2026-04-14
 - Added support for PODAAC GHRSST MUR and MUR25 collections
 - Added support for filter rules with "and" logical operators
