@@ -122,6 +122,15 @@ def test_process_products(sample_nc_file):
         }
     }
 
+    metadata = {
+        "instrument": "TEMPO",
+        "product": "NO2",
+        "level": "L3",
+        "version": "V03",
+        "timestamp": "",
+        "sequence": "",
+    }
+
     # Open the original netCDF file (group "product") to count the initial NaN values.
     original_ds = xr.open_dataset(sample_nc_file, group="product")
     orig_da = original_ds["vertical_column_stratosphere"]
@@ -129,7 +138,7 @@ def test_process_products(sample_nc_file):
     original_ds.close()
 
     # Run the processing function which applies the filter and creates the filtered file.
-    core.process_products(settings, config, os.path.basename(sample_nc_file), "product/vertical_column_stratosphere")
+    core.process_products(settings, config, metadata, os.path.basename(sample_nc_file), "product/vertical_column_stratosphere")
 
     # Build the expected filtered file path based on the input file's name.
     base_name = os.path.splitext(os.path.basename(sample_nc_file))[0]

@@ -4,7 +4,6 @@ import json
 import re
 import shutil
 from pathlib import Path
-from tempfile import mkdtemp
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -18,6 +17,7 @@ from harmony_filtering_service.adapter_utils import (
 )  # see below
 from harmony_filtering_service.core import process_products
 from harmony_filtering_service.exceptions import FilteringUtilityError
+from harmony_filtering_service.identify import identify_dataset
 
 # ensure ENV=dev if nothing else
 # os.environ.setdefault("ENV", "dev")
@@ -80,7 +80,7 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
         result = item.clone()
         result.assets = {}
 
-        ## 0) Determine variables that need processing
+        # 0) Determine variables that need processing
         var_list = source.process("variables")
 
         if var_list:
@@ -89,168 +89,98 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
             myvariable = var_list[0]
             self.logger.info("First variable is %s", myvariable)
         else:
+            myvariable = "all"
             self.logger.info(
                 "THIS SHOULD NOT HAPPEN IN IMAGENATOR. Processing all variables."
             )
 
-        # 1) download into a throw-away dir
-        workdir = mkdtemp()
-        try:
-            asset = next(v for v in item.assets.values() if "data" in (v.roles or []))
+        # 1) Identify the product type etc. using the collection short name
+        metadata = identify_dataset(source.get("shortName", ""), source.get("versionId"))
+        product_type = metadata['product']
+        self.logger.info(
+            f"Instrument: {metadata['instrument']}, Product: {product_type}"
+        )
+
+        # 2) Download into the data dir
+        base = Path(__file__).parent.parent
+        settings_path = base / "config" / "settings.json"
+        settings = load_and_prepare_settings(settings_path)
+        data_dir = Path(settings["data_dir"])
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+        asset = next(v for v in item.assets.values() if "data" in (v.roles or []))
+
+        local_in = download(
+            asset.href,
+            data_dir,
+            logger=self.logger,
+            access_token=self.message.accessToken,
+        )
+
+        if product_type != "UNDEFINED":
+            # 3) Load the config.json and retrieve the rules for the product_type
+            cfg = json.loads(
+                (base / "config" / "config.json").read_text(encoding="utf-8")
+            )
+            filtered_cfg = {product_type: cfg.get(product_type)}
 
             parsed = urlparse(asset.href)
             in_fname = Path(unquote(parsed.path)).name
             # strip leading “digits_” if present
             clean_fname = re.sub(r"^\d+_", "", in_fname)
-            # self.logger.info("Syedd: Extracted clean filename: %s", clean_fname)
-
-            # 2) load and prepare settings.json (creates data_dir & output_dir)
-            base = Path(__file__).parent.parent
-
-            # 4) load your filtering config.json
-            cfg = json.loads(
-                (base / "config" / "config.json").read_text(encoding="utf-8")
-            )
-
-            # 5) run your core filtering logic
-            # process_products(settings, cfg)
-
             self.logger.info("clean_fname: %s", clean_fname)
 
-            ## Extract just the product name (e.g., NO2) from the filename
-            # product_match = re.match(r"TEMPO_([A-Z0-9]+)_L", clean_fname)
+            # Rename the file in the data_dir
+            staged_input = data_dir / clean_fname
+            shutil.move(local_in, staged_input)
 
-            # if not product_match:
-            #    self.logger.error(
-            #        "Could not find product type from filename: %s", clean_fname
-            #    )
-            #    return
-
-            # product_type = product_match.group(1)
-            # self.logger.info("Detected product type: %s", product_type)
-
-            # Extract instrument + product right here
-            match = re.match(r"([A-Z0-9]+)_([A-Z0-9]+)_L", clean_fname)
-            if not match:
-                # Attempt to determine if the product matches the MUR naming convention
-                # if the product is not TEMPO
-                cleaner_fname = re.sub(r"^\d+-", "", clean_fname)
-                # cleaner_fname examples: JPL-L4_GHRSST-SSTfnd-MUR-GLOB-v02.0-fv04.1 or
-                # JPL-L4_GHRSST-SSTfnd-MUR25-GLOB-v02.0-fv04.2
-                match_mur = re.match(r"JPL-L4_GHRSST-SSTfnd-([A-Z0-9]+)-GLOB", cleaner_fname)
-                if not match_mur:
-                    self.logger.error(
-                        "Could not parse instrument/product from filename: %s", clean_fname
-                    )
-
-                    instrument = "UNDEFINED"
-                    product_type = "UNDEFINED"
-                else:
-                    instrument = match_mur.group(1)
-                    # MUR and MUR25 use the same filter rules in the config.json
-                    product_type = "MUR"
-                # return
-            else:
-                instrument = match.group(1)
-                product_type = match.group(2)
-                self.logger.info(
-                    "Instrument: %s, Product: %s", instrument, product_type
+            # 4) Run the filtering rules on the product
+            try:
+                process_products(
+                    settings,
+                    filtered_cfg,
+                    metadata,
+                    clean_fname,
+                    myvariable
                 )
+            except FilteringUtilityError as e:
+                self.logger.error(str(e))
+                raise
 
-            local_in = download(
-                asset.href,
-                workdir,
-                logger=self.logger,
-                access_token=self.message.accessToken,
+            # 5) find the one filtered file and stage it
+            out_dir = Path(settings["output_dir"])
+            base_stem = staged_input.stem
+            filtered = out_dir / f"{base_stem}_filtered.nc"
+
+            if not filtered.exists():
+                emsg = f"^^^^: Expected filtered output but none found at {filtered}"
+                self.logger.error(emsg)
+                raise FilteringUtilityError(emsg)
+
+            final_file = filtered
+        else:
+            self.logger.info(
+                f"Unrecognized instrument detected ({instrument}). Skipping filtering."
             )
+            final_file = Path(local_in)
 
-            # ─── Case 1: TEMPO instrument → normal filtering ───
-            if instrument in ["TEMPO", "MUR", "MUR25"]:
-                if product_type not in cfg:
-                    self.logger.error(
-                        "Product type '%s' NOT found in config", product_type
-                    )
-                    return
+        url = stage(
+            final_file,
+            final_file.name,
+            "application/x-netcdf",
+            location=self.message.stagingLocation,
+            logger=self.logger,
+        )
 
-                settings_path = base / "config" / "settings.json"
-                settings = load_and_prepare_settings(settings_path)
+        # add it to the STAC
+        result.assets["data"] = Asset(
+            href=url,
+            title=final_file.name,
+            media_type="application/x-netcdf",
+            roles=["data"],
+        )
 
-                # 3) move the downloaded file into data_dir
-                data_dir = Path(settings["data_dir"])
-                data_dir.mkdir(parents=True, exist_ok=True)
-
-                staged_input = data_dir / clean_fname
-                shutil.copy(local_in, staged_input)
-
-                if not staged_input.exists():
-                    self.logger.error(
-                        "^^^: Expected staged_input output but none found at %s",
-                        staged_input,
-                    )
-                    return
-
-                # self.logger.info("******* in_fname: %s", in_fname)
-                # self.logger.info("******* staged_input: %s", staged_input)
-
-                filtered_cfg = {product_type: cfg[product_type]}
-                # process_products(settings, filtered_cfg, clean_fname)
-                try:
-                    # process_products(settings, filtered_cfg, clean_fname)
-                    process_products(settings, filtered_cfg, clean_fname, myvariable)
-                except FilteringUtilityError as e:
-                    self.logger.error(str(e))
-                    raise
-
-                # 6) find the one filtered file and stage it
-                out_dir = Path(settings["output_dir"])
-                base_stem = staged_input.stem
-                filtered = out_dir / f"{base_stem}_filtered.nc"
-
-                if not filtered.exists():
-                    self.logger.error(
-                        "^^^^: Expected filtered output but none found at %s", filtered
-                    )
-                    return
-
-                final_file = filtered
-
-                # ===== SAVE A LOCAL COPY OF THE FILTERED NETCDF =====
-                # local_out_dir = Path("/worker/local_debug_output")
-                # local_out_dir.mkdir(parents=True, exist_ok=True)
-
-                # local_copy_path = local_out_dir / final_file.name
-                # shutil.copy(final_file, local_copy_path)
-
-                # self.logger.info(f"Local copy of filtered file saved to: {local_copy_path}")
-
-            # ─── Case 2: Other instrument → just stage original ───
-            else:
-                self.logger.info(
-                    "Unrecognized instrument detected (%s). Skipping filtering.",
-                    instrument,
-                )
-                final_file = Path(local_in)
-
-            url = stage(
-                final_file,
-                final_file.name,
-                "application/x-netcdf",
-                location=self.message.stagingLocation,
-                logger=self.logger,
-            )
-
-            # add it to the STAC
-            result.assets["data"] = Asset(
-                href=url,
-                title=final_file.name,
-                media_type="application/x-netcdf",
-                roles=["data"],
-            )
-
-            return result
-
-        finally:
-            shutil.rmtree(workdir)
+        return result
 
 
 def main() -> None:

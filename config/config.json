@@ -514,5 +514,125 @@
         "excluded_variables": ["analysis_error", "mask", "dt_1km_data", "analysed_sst", "sea_ice_fraction", "sst_anomaly"]
       }
     }
+  },
+  "MODIS_L3_SST_MID_IR": {
+    "filters": {
+      "pixel_filter": [
+        {
+          "target_var": "sst4",
+          "criteria_var": "qual_sst4",
+          "operator": "not-equal-to",
+          "threshold": "0",
+          "target_value": "nan",
+          "level": "all"
+        }
+      ],
+      "variable_exclusion": {
+        "excluded_variables": ["qual_sst4"]
+      }
+    }
+  },
+  "MODIS_L3_SST_THERMAL": {
+    "filters": {
+      "pixel_filter": [
+        {
+          "target_var": "sst",
+          "criteria_var": "qual_sst",
+          "operator": "not-equal-to",
+          "threshold": "0",
+          "target_value": "nan",
+          "level": "all"
+        }
+      ],
+      "variable_exclusion": {
+        "excluded_variables": ["qual_sst"]
+      }
+    }
+  },
+  "GAMSSA": {
+    "filters": {
+      "pixel_filter": [
+        {
+          "target_var": "analysed_sst",
+          "criteria_var": "mask",
+          "operator": "equal-to",
+          "threshold": "2",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "analysed_sst",
+          "criteria_var": "mask",
+          "operator": "equal-to",
+          "threshold": "8",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "analysed_sst",
+          "criteria_var": "analysis_error",
+          "operator": "greater-than-equal-to",
+          "threshold": "0.99",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "sea_ice_fraction",
+          "criteria_var": "mask",
+          "operator": "not-equal-to",
+          "threshold": "1",
+          "criteria_var_AND": "mask",
+          "operator_AND": "not-equal-to",
+          "threshold_AND": "8",
+          "target_value": "nan",
+          "level": "all"
+        }
+      ],
+      "variable_exclusion": {
+        "excluded_variables": ["analysis_error", "mask", "analysed_sst", "sea_ice_fraction"]
+      }
+    }
+  },
+  "AVHRRF_STAR": {
+    "filters": {
+      "pixel_filter": [
+        {
+          "target_var": "sea_surface_temperature",
+          "criteria_var": "quality_level",
+          "operator": "not-equal-to",
+          "threshold": "5",
+          "target_value": "nan",
+          "level": "all"
+        }
+      ],
+      "variable_exclusion": {
+        "excluded_variables": ["dt_analysis", "l2p_flags", "quality_level", "satellite_zenith_angle", "sses_bias", "sses_standard_deviation", "sst_dtime", "sst_front_position", "sst_gradient_magnitude", "wind_speed"]
+      }
+    }
+  },
+  "AVHRR_OI_NCEI": {
+    "filters": {
+      "pixel_filter": [
+        {
+          "target_var": "analysed_sst",
+          "criteria_var": "mask",
+          "operator": "equal-to",
+          "threshold": "2",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "analysed_sst",
+          "criteria_var": "sea_ice_fraction",
+          "operator": "greater-than",
+          "threshold": "0",
+          "target_value": "nan",
+          "level": "all"
+        }
+      ],
+      "variable_exclusion": {
+        "excluded_variables": ["analysis_error", "mask", "sea_ice_fraction"]
+      }
+    }
   }
 }
