@@ -226,6 +226,241 @@
       "required": ["filters"]
     }
   },
-  "required": ["O3TOT", "CLDO4", "HCHO", "NO2", "MUR"],
+  "MODIS_L3_SST_MID_IR": {
+    "type": "object",
+    "properties": {
+      "filters": {
+        "type": "object",
+        "properties": {
+          "pixel_filter": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target_var": { "type": "string" },
+                "criteria_var": { "type": "string" },
+                "operator": { "type": "string" },
+                "threshold": { "type": "string" },
+                "target_value": { "type": "string" },
+                "level": { "type": "string" },
+                "criteria_var_AND": { "type": "string" },
+                "operator_AND": { "type": "string" },
+                "threshold_AND": { "type": "string" }
+              },
+              "required": [
+                "target_var",
+                "criteria_var",
+                "operator",
+                "threshold",
+                "target_value",
+                "level"
+              ]
+            }
+          },
+          "variable_exclusion": {
+            "type": "object",
+            "properties": {
+              "excluded_variables": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["excluded_variables"]
+          }
+        },
+        "required": ["pixel_filter", "variable_exclusion"]
+      }
+    },
+    "required": ["filters"]
+  },
+  "MODIS_L3_SST_THERMAL": {
+    "type": "object",
+    "properties": {
+      "filters": {
+        "type": "object",
+        "properties": {
+          "pixel_filter": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target_var": { "type": "string" },
+                "criteria_var": { "type": "string" },
+                "operator": { "type": "string" },
+                "threshold": { "type": "string" },
+                "target_value": { "type": "string" },
+                "level": { "type": "string" },
+                "criteria_var_AND": { "type": "string" },
+                "operator_AND": { "type": "string" },
+                "threshold_AND": { "type": "string" }
+              },
+              "required": [
+                "target_var",
+                "criteria_var",
+                "operator",
+                "threshold",
+                "target_value",
+                "level"
+              ]
+            }
+          },
+          "variable_exclusion": {
+            "type": "object",
+            "properties": {
+              "excluded_variables": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["excluded_variables"]
+          }
+        },
+        "required": ["pixel_filter", "variable_exclusion"]
+      }
+    },
+    "required": ["filters"]
+  },
+  "GAMSSA": {
+    "type": "object",
+    "properties": {
+      "filters": {
+        "type": "object",
+        "properties": {
+          "pixel_filter": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target_var": { "type": "string" },
+                "criteria_var": { "type": "string" },
+                "operator": { "type": "string" },
+                "threshold": { "type": "string" },
+                "target_value": { "type": "string" },
+                "level": { "type": "string" },
+                "criteria_var_AND": { "type": "string" },
+                "operator_AND": { "type": "string" },
+                "threshold_AND": { "type": "string" }
+              },
+              "required": [
+                "target_var",
+                "criteria_var",
+                "operator",
+                "threshold",
+                "target_value",
+                "level"
+              ]
+            }
+          },
+          "variable_exclusion": {
+            "type": "object",
+            "properties": {
+              "excluded_variables": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["excluded_variables"]
+          }
+        },
+        "required": ["pixel_filter", "variable_exclusion"]
+      }
+    },
+    "required": ["filters"]
+  },
+  "AVHRRF_STAR": {
+    "type": "object",
+    "properties": {
+      "filters": {
+        "type": "object",
+        "properties": {
+          "pixel_filter": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target_var": { "type": "string" },
+                "criteria_var": { "type": "string" },
+                "operator": { "type": "string" },
+                "threshold": { "type": "string" },
+                "target_value": { "type": "string" },
+                "level": { "type": "string" },
+                "criteria_var_AND": { "type": "string" },
+                "operator_AND": { "type": "string" },
+                "threshold_AND": { "type": "string" }
+              },
+              "required": [
+                "target_var",
+                "criteria_var",
+                "operator",
+                "threshold",
+                "target_value",
+                "level"
+              ]
+            }
+          },
+          "variable_exclusion": {
+            "type": "object",
+            "properties": {
+              "excluded_variables": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["excluded_variables"]
+          }
+        },
+        "required": ["pixel_filter", "variable_exclusion"]
+      }
+    },
+    "required": ["filters"]
+  },
+  "AVHRR_OI_NCEI": {
+    "type": "object",
+    "properties": {
+      "filters": {
+        "type": "object",
+        "properties": {
+          "pixel_filter": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target_var": { "type": "string" },
+                "criteria_var": { "type": "string" },
+                "operator": { "type": "string" },
+                "threshold": { "type": "string" },
+                "target_value": { "type": "string" },
+                "level": { "type": "string" },
+                "criteria_var_AND": { "type": "string" },
+                "operator_AND": { "type": "string" },
+                "threshold_AND": { "type": "string" }
+              },
+              "required": [
+                "target_var",
+                "criteria_var",
+                "operator",
+                "threshold",
+                "target_value",
+                "level"
+              ]
+            }
+          },
+          "variable_exclusion": {
+            "type": "object",
+            "properties": {
+              "excluded_variables": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["excluded_variables"]
+          }
+        },
+        "required": ["pixel_filter", "variable_exclusion"]
+      }
+    },
+    "required": ["filters"]
+  },
+  "required": ["O3TOT", "CLDO4", "HCHO", "NO2", "MUR", "MODIS_L3_SST_MID_IR", "MODIS_L3_SST_THERMAL", "GAMSSA", "AVHRRF_STAR", "AVHRR_OI_NCEI"],
   "additionalProperties": false
 }

@@ -117,6 +117,14 @@ class TestProcessProducts(unittest.TestCase):
         mock_listdir.return_value = [self.file_path]
 
         # Setup parse_granule_filename returning metadata with level = "3"
+        metadata = {
+            "instrument": "TEMPO",
+            "product": self.product_type,
+            "level": "3",
+            "version": "V03",
+            "timestamp": "",
+            "sequence": "",
+        }
         mock_parse_granule_filename.return_value = {
             "instrument": "TEMPO",
             "product": self.product_type,
@@ -173,7 +181,7 @@ class TestProcessProducts(unittest.TestCase):
         mock_ncDataset.side_effect = [mock_src_nc, mock_dst_nc]
 
         # Run function under test
-        process_products(self.settings, self.config, self.filename, "primary/varA")
+        process_products(self.settings, self.config, metadata, self.filename, "primary/varA")
 
         # Check listdir was called with the correct pattern
         #mock_listdir.assert_called_once_with(
@@ -217,7 +225,6 @@ class TestProcessProducts(unittest.TestCase):
     @mock.patch("harmony_filtering_service.core.os.listdir")
     @mock.patch("harmony_filtering_service.core.get_logger")
     @mock.patch("harmony_filtering_service.core.log_msg")
-    @mock.patch("harmony_filtering_service.core.parse_mur_filename")
     @mock.patch("harmony_filtering_service.core.xr.open_dataset")
     @mock.patch("harmony_filtering_service.core.ncDataset")
     @mock.patch("harmony_filtering_service.core.copy_group")
@@ -226,7 +233,6 @@ class TestProcessProducts(unittest.TestCase):
         mock_copy_group,
         mock_ncDataset,
         mock_open_dataset,
-        mock_parse_mur_filename,
         mock_log_msg,
         mock_get_logger,
         mock_listdir,
@@ -235,20 +241,17 @@ class TestProcessProducts(unittest.TestCase):
         # Setup mocks for listdir: simulate one file found
         mock_listdir.return_value = [self.file_path_mur]
 
-        # Setup parse_granule_filename returning metadata with level = "3"
-        mock_parse_mur_filename.return_value = {
-            "instrument": "GHRSST MUR",
+        # Metadata that would be parsed from collection shortname
+        metadata = {
+            "instrument": "MUR",
             "product": self.product_type_mur,
             "level": "L4",
-            "version": "fv04.2",
-            "timestamp": "20260302090000",
+            "version": "v04.2",
+            "timestamp": "",
             "sequence": "",
         }
 
         # Setup xarray open_dataset mock per group
-        # We use simple xarray DataArrays with some test data
-        # ds_primary = mock.MagicMock()
-        # ds_secondary = mock.MagicMock()
         # For primary vars
         primary_varA = xr.DataArray(np.array([271.5, 272.0, 271.0, 273.0]))
         # For criteria (filter) vars
@@ -278,18 +281,10 @@ class TestProcessProducts(unittest.TestCase):
         mock_ncDataset.side_effect = [mock_src_nc, mock_dst_nc]
 
         # Run function under test
-        process_products(self.settings, self.config_mur, self.filename_mur, "varA")
-
-        # Check listdir was called with the correct pattern
-        #mock_listdir.assert_called_once_with(
-        #    os.path.join(self.settings["output_dir"])
-        #)
+        process_products(self.settings, self.config_mur, metadata, self.filename_mur, "varA")
 
         # Logger created once
         mock_get_logger.assert_called_once()
-
-        # parse_granule_filename called with correct filename
-        mock_parse_mur_filename.assert_called_once_with(self.filename_mur)
 
         # open_dataset called for groups 'primary' and 'secondary'
         open_dataset_calls = [
@@ -307,41 +302,6 @@ class TestProcessProducts(unittest.TestCase):
         self.assertIn("Metadata extracted from filename:", log_msgs)
         self.assertIn("Before applying filters:", log_msgs)
         self.assertIn("After applying filters:", log_msgs)
-
-
-"""
-Jackie: Appears to test deprecated behavior of process_products, disabling this test
-    @mock.patch("harmony_filtering_service.core.glob.glob")
-    @mock.patch("builtins.print")
-    def test_process_products_no_files_prints_message(self, mock_print, mock_glob):
-        # Setup no files found for product
-        mock_glob.return_value = []
-
-        settings = {
-            "data_dir": "./data/in_data",
-            "output_dir": "./data/out_data",
-            "logging": {
-                "log_to_console": True,
-                "log_to_file": False,
-                "log_file_path": "",
-                "log_level": "INFO",
-            },
-        }
-
-        config = {
-            "NO2": {
-                "filters": {
-                    "variable_exclusion": {"excluded_variables": []},
-                    "pixel_filter": [],
-                }
-            }
-        }
-
-        process_products(settings, config)
-
-        # Confirm "No file found" print statement executed for product
-        mock_print.assert_called_with("No file found for product 'NO2'. Skipping.")
-"""
 
 
 if __name__ == "__main__":

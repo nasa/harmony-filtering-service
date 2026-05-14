@@ -68,22 +68,6 @@ def parse_granule_filename(filename: str) -> Dict[str, str]:
         "sequence": sequence,
     }
 
-def parse_mur_filename(filename: str) -> Dict[str, str]:
-    """Parse a MUR/MUR25 filename and extract metadata."""
-    parts = os.path.splitext(filename)[0].split("-")
-    timestamp = parts[0]
-    level = parts[2].split("_")[0]
-    product = parts[4]
-    version = parts[-1]
-    return {
-        "instrument": "GHRSST MUR",
-        "product": product,
-        "level": level,
-        "version": version,
-        "timestamp": timestamp,
-        "sequence": "",
-    }
-
 
 def parse_full_path(full_path: str) -> tuple[str, str]:
     """
@@ -312,7 +296,11 @@ def apply_mask(
 
 
 def process_products(
-    settings: Dict[str, Any], config: Dict[str, Any], clean_fname: str, myvariable: str
+        settings: Dict[str, Any],
+        config: Dict[str, Any],
+        metadata: Dict[str, str],
+        clean_fname: str,
+        myvariable: str
 ) -> None:
     """
     Main processing loop for filtering products.
@@ -355,10 +343,12 @@ def process_products(
         log_msg(f"File: {file_path}", logger)
 
         filename = os.path.basename(file_path)
-        if not filename.startswith("TEMPO"):
-            metadata = parse_mur_filename(filename)
-        else:
+        # For TEMPO, parse timestamp and sequence for logging purposes
+        # Only level is required for processing, so other collections just
+        # get this information from the collection info
+        if filename.startswith("TEMPO"):
             metadata = parse_granule_filename(filename)
+
         print(f"[INFO] Parsed metadata: {metadata}")
         log_msg("Metadata extracted from filename:", logger)
         log_msg(f"  Instrument: {metadata['instrument']}", logger)
