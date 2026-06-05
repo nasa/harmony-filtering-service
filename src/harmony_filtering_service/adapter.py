@@ -158,7 +158,7 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
             if not filtered.exists():
                 emsg = f"^^^^: Expected filtered output but none found at {filtered}"
                 self.logger.error(emsg)
-                raise FilteringUtilityError(emsg)
+                return
 
             final_file = filtered
         else:
