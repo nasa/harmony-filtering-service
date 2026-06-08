@@ -1,3 +1,5 @@
+## v0.3.1 - 2026-06-08
+- Reverted a regression introduced in v0.3.0 where jobs that produce no output would throw an error.
 
 ## v0.3.0 - 2026-05-13
 - Added support for PODAAC's GAMSSA, AVHRRF STAR, AVHRR OI NCEI, and MODIS L3 SST datasets
