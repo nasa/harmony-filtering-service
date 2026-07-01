@@ -120,22 +120,24 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
             access_token=self.message.accessToken,
         )
 
+        # Always recover the original filename from the asset href
+        parsed = urlparse(asset.href)
+        in_fname = Path(unquote(parsed.path)).name
+
+        # Strip leading “digits_” if present
+        clean_fname = re.sub(r"^\d+_", "", in_fname)
+        self.logger.info("clean_fname: %s", clean_fname)
+
+        # Rename the downloaded file in data_dir to the original/clean filename
+        staged_input = data_dir / clean_fname
+        shutil.move(local_in, staged_input)
+
         if product_type != "UNDEFINED":
             # 3) Load the config.json and retrieve the rules for the product_type
             cfg = json.loads(
                 (base / "config" / "config.json").read_text(encoding="utf-8")
             )
             filtered_cfg = {product_type: cfg.get(product_type)}
-
-            parsed = urlparse(asset.href)
-            in_fname = Path(unquote(parsed.path)).name
-            # strip leading “digits_” if present
-            clean_fname = re.sub(r"^\d+_", "", in_fname)
-            self.logger.info("clean_fname: %s", clean_fname)
-
-            # Rename the file in the data_dir
-            staged_input = data_dir / clean_fname
-            shutil.move(local_in, staged_input)
 
             # 4) Run the filtering rules on the product
             try:
@@ -165,7 +167,7 @@ class FilteringAdapter(harmony_service_lib.BaseHarmonyAdapter):  # type: ignore[
             self.logger.info(
                 f"Unrecognized instrument detected ({instrument}). Skipping filtering."
             )
-            final_file = Path(local_in)
+            final_file = staged_input
 
         url = stage(
             final_file,
