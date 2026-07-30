@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+    # Raise pull requests for version updates
+    # to pip against the `develop` branch
+    target-branch: "develop"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      gha-dependencies:
+        patterns:
+          - "*"
+    target-branch: "develop"
