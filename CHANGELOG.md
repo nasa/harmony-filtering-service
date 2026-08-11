@@ -1,3 +1,6 @@
+## v0.3.2 - 2026-07-01
+- Preserved the original input filename for unrecognized/undefined collections when filtering is skipped.
+
 ## v0.3.1 - 2026-06-08
 - Reverted a regression introduced in v0.3.0 where jobs that produce no output would throw an error.
 
