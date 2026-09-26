@@ -220,7 +220,9 @@ def copy_group(
                 offset = get_ncattr(var, "add_offset", 0.0) or 0.0
                 cast_fillval = scale * float(fill_value) + offset
                 data = np.array(np.where(filtered_primary[key].isnull(), cast_fillval, data))
-            if data.shape != dst_var.shape:
+            # A new unlimited dimension is still length zero here. Compare
+            # with the source shape so singleton record axes are preserved.
+            if data.shape != var.shape:
                 data = np.squeeze(data)
             dst_var[:] = data
         else:
