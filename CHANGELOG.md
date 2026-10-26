@@ -1,3 +1,7 @@
+## v0.4.0 - 2026-10-20
+- Added `add`, `subtract`, `multiply` and `divide` filter rule operators, which combine the target variable with the criteria variable pixel by pixel. This supports corrections such as the SWOT L2 LR SSH crossover correction (`ssh_karin + height_cor_xover`). Rules using these operators do not need `threshold` or `target_value`.
+- Added support for PODAAC's SWOT L2 KaRIn Low Rate SSH collections (`SWOT_L2_LR_SSH_<subcollection>_<version>`).
+
 ## v0.3.2 - 2026-07-01
 - Preserved the original input filename for unrecognized/undefined collections when filtering is skipped.
 
