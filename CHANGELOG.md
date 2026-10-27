@@ -1,3 +1,8 @@
+## Unreleased
+
+- Preserve singleton record axes when writing filtered variables with unlimited
+  dimensions, preventing duplicated or missing output observations. (#14)
+
 ## v0.3.2 - 2026-07-01
 - Preserved the original input filename for unrecognized/undefined collections when filtering is skipped.
 
