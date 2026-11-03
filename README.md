@@ -84,6 +84,67 @@ The **Harmony Filtering Service** is a microservice in the NASA Harmony ecosyste
      flask run --port 3000
    ```
 
+## Configuration
+
+### Filter rules
+
+Filter rules for each supported group of collections are defined in `config/config.json`, under
+`<PRODUCT>.filters.pixel_filter`. Rules run in the order they are listed. A rule only runs
+when its `target_var` is the variable requested from Harmony and its `level` is `"all"` or
+matches the granule's processing level. For example, some TEMPO rules only run on L2 products,
+so their `level` is `"2"`.
+
+#### Comparison rules
+
+Where `criteria_var <operator> threshold` is true, valid pixels of `target_var` are set to
+`target_value` (a number, or `"nan"`).
+
+| `operator`                 | Filters pixels where `criteria_var` is...       |
+|----------------------------|-------------------------------------------------|
+| `greater-than`             | `> threshold`                                   |
+| `less-than`                | `< threshold`                                   |
+| `greater-than-or-equal-to` | `>= threshold`                                  |
+| `less-than-or-equal-to`    | `<= threshold`                                  |
+| `equal-to`                 | `== threshold`                                  |
+| `not-equal-to`             | `!= threshold`                                  |
+| `in`                       | **not** one of the values in a `threshold` list |
+
+A comparison rule may also include `criteria_var_AND`, `operator_AND` and `threshold_AND`, in
+which case pixels are only filtered where both conditions are true.
+
+#### Arithmetic rules
+
+Arithmetic rules replace `target_var` with `target_var <operator> criteria_var`, pixel by pixel.
+They are used to apply corrections that a product stores in a separate variable. They do not
+use `threshold` or `target_value`, and cannot be combined with `criteria_var_AND`.
+
+| `operator` | Result                       |
+|------------|------------------------------|
+| `add`      | `target_var + criteria_var`  |
+| `subtract` | `target_var - criteria_var`  |
+| `multiply` | `target_var * criteria_var`  |
+| `divide`   | `target_var / criteria_var`  |
+
+For example, the SWOT L2 LR SSH `ssh_karin` variable does not have the crossover
+correction applied, it comes from the `height_cor_xover` variable:
+
+```json
+{
+  "target_var": "ssh_karin",
+  "criteria_var": "height_cor_xover",
+  "operator": "add",
+  "level": "all"
+}
+```
+
+Variables are matched by dimension name; `criteria_var` must have the same dimensions as
+`target_var`, or a subset of them. A pixel that is missing (NaN) in either variable is NaN in
+the result, and `divide` gives NaN where `criteria_var` is zero.
+
+Later rules for the same `target_var` see the result of an arithmetic rule, but every rule's
+`criteria_var` is read as stored in the file, even if an earlier arithmetic rule changed that
+same variable.
+
 ## Testing
    ```bash
     uv run pytest

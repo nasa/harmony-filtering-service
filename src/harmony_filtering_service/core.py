@@ -17,6 +17,12 @@ from netCDF4 import Dataset as ncDataset
 from harmony_filtering_service.exceptions import FilteringUtilityError
 from harmony_filtering_service.logger import get_logger, log_msg, Logger, DummyLogger
 
+# Operators that combine the target variable with the criteria variable
+# element-wise (target <op> criteria) instead of building a mask from the
+# criteria variable. Rules using these operators ignore "threshold" and
+# "target_value".
+ARITHMETIC_OPERATORS = ("add", "subtract", "multiply", "divide")
+
 
 def all_primary_vars_blank(
     primary_vars: Dict[str, xr.DataArray], myvariable: str
@@ -295,6 +301,74 @@ def apply_mask(
     return target_arr.where(~active_mask, other=target_value)
 
 
+def apply_arithmetic(
+        target_arr: xr.DataArray,
+        criteria_arr: xr.DataArray,
+        operator: str,
+        rule_key: int,
+        criteria_name: str,
+        logger: Logger | DummyLogger,
+) -> xr.DataArray:
+    """
+    Combine the target variable with the criteria variable element-wise.
+
+    Supported operators (see ARITHMETIC_OPERATORS):
+        add:      target + criteria
+        subtract: target - criteria
+        multiply: target * criteria
+        divide:   target / criteria
+
+    Variables are matched by dimension name, so the criteria variable may
+    have the same dimensions as the target (in any order) or a subset of
+    them, in which case it is broadcast. A pixel that is NaN in either
+    variable is NaN in the result. For "divide", pixels where the criteria
+    variable is zero are set to NaN rather than +/-inf.
+
+    Raises FilteringUtilityError if the operator is not an arithmetic
+    operator, or if the result would not have the same shape as the target.
+    """
+    if operator not in ARITHMETIC_OPERATORS:
+        raise FilteringUtilityError(
+            f"Unsupported arithmetic operator '{operator}' in rule '{rule_key}'."
+        )
+
+    shape_error = (
+        f"Filter rule '{rule_key}': cannot '{operator}' secondary variable "
+        f"'{criteria_name}' with dimensions {dict(criteria_arr.sizes)} and a target "
+        f"variable with dimensions {dict(target_arr.sizes)}."
+    )
+
+    try:
+        if operator == "add":
+            result = target_arr + criteria_arr
+        elif operator == "subtract":
+            result = target_arr - criteria_arr
+        elif operator == "multiply":
+            result = target_arr * criteria_arr
+        else:  # divide
+            result = target_arr / criteria_arr.where(criteria_arr != 0)
+    except ValueError as err:
+        # e.g. a shared dimension name with a different length
+        raise FilteringUtilityError(shape_error) from err
+
+    # Guard against xarray broadcasting the target to extra dimensions, or
+    # aligning it down to fewer pixels, which would corrupt the output.
+    if dict(result.sizes) != dict(target_arr.sizes):
+        raise FilteringUtilityError(shape_error)
+
+    result.attrs = dict(target_arr.attrs)
+    result.name = target_arr.name
+
+    lost_count = int((result.isnull() & target_arr.notnull()).sum())
+    log_msg(
+        f"Filter rule '{rule_key}': applied '{operator}' with secondary variable "
+        f"'{criteria_name}'; previously valid pixels now NaN = {lost_count}",
+        logger,
+    )
+
+    return result
+
+
 def process_products(
         settings: Dict[str, Any],
         config: Dict[str, Any],
@@ -458,6 +532,30 @@ def process_products(
                 continue
 
             operator = rule["operator"]
+
+            if operator in ARITHMETIC_OPERATORS:
+                # Arithmetic rules change the target variable's values (e.g. adding
+                # a correction term) instead of masking pixels, so they do not use
+                # "threshold" or "target_value". They are applied in rule order, on
+                # top of any earlier rules for the same target variable.
+                if primary_full_path in primary_vars and secondary_full_path in secondary_vars:
+                    and_keys = {"criteria_var_AND", "operator_AND", "threshold_AND"}
+                    if and_keys.intersection(rule):
+                        raise FilteringUtilityError(
+                            f"Filter rule '{rule_key}': {sorted(and_keys)} are not supported "
+                            f"with arithmetic operator '{operator}'."
+                        )
+                    primary_vars[primary_full_path] = apply_arithmetic(
+                        primary_vars[primary_full_path],
+                        secondary_vars[secondary_full_path],
+                        operator,
+                        rule_key,
+                        secondary_full_path,
+                        logger,
+                    )
+                    any_filter_applied = True
+                continue
+
             thresholds = handle_threshold(rule["threshold"])  # normalize value to list[float]
             target_value = (
                 float(rule["target_value"]) if rule["target_value"] != "nan" else np.nan

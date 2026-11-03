@@ -115,6 +115,59 @@ UNDEFINED = {
         {"instrument": "TEMPO", "product": "HCHO", "level": "L2", "version": "V03",
          "timestamp": "", "sequence": ""},
     ),
+    # SWOT L2 LR SSH: any subcollection, in either case, with a letter or
+    # numeric version; version comes from the short name, not version_id
+    (
+        "SWOT_L2_LR_SSH_BASIC_D",
+        "D",
+        {"instrument": "SWOT", "product": "SWOT_L2_LR_SSH", "level": "L2", "version": "D",
+         "timestamp": "", "sequence": ""},
+    ),
+    (
+        "SWOT_L2_LR_SSH_Basic_D",
+        None,
+        {"instrument": "SWOT", "product": "SWOT_L2_LR_SSH", "level": "L2", "version": "D",
+         "timestamp": "", "sequence": ""},
+    ),
+    (
+        "SWOT_L2_LR_SSH_EXPERT_D",
+        "D",
+        {"instrument": "SWOT", "product": "SWOT_L2_LR_SSH", "level": "L2", "version": "D",
+         "timestamp": "", "sequence": ""},
+    ),
+    (
+        "SWOT_L2_LR_SSH_Expert_2.0",
+        "2.0",
+        {"instrument": "SWOT", "product": "SWOT_L2_LR_SSH", "level": "L2", "version": "2.0",
+         "timestamp": "", "sequence": ""},
+    ),
+    (
+        "SWOT_L2_LR_SSH_UNSMOOTHED_2.0",
+        None,
+        {"instrument": "SWOT", "product": "SWOT_L2_LR_SSH", "level": "L2", "version": "2.0",
+         "timestamp": "", "sequence": ""},
+    ),
+    (
+        "SWOT_L2_LR_SSH_WindWave_D",
+        None,
+        {"instrument": "SWOT", "product": "SWOT_L2_LR_SSH", "level": "L2", "version": "D",
+         "timestamp": "", "sequence": ""},
+    ),
 ])
 def test_identify_dataset(short_name, version_id, expected):
     assert identify_dataset(short_name, version_id) == expected
+
+
+@pytest.mark.parametrize("short_name", [
+    # SWOT parent collections, which have no subcollection in the short name
+    "SWOT_L2_LR_SSH_D",
+    "SWOT_L2_LR_SSH_2.0",
+    # Other SWOT products
+    "SWOT_L2_LR_PreCalSSH_Basic_D",
+    "SWOT_L2_NALT_IGDR_2.0",
+    "SWOT_L2_LR_SSH_Basic_D_extra",
+    "SWOT_L2_LR_SSH_Basic_v2",
+    "UNKNOWN_COLLECTION",
+])
+def test_identify_dataset_undefined(short_name):
+    assert identify_dataset(short_name, "D") == UNDEFINED

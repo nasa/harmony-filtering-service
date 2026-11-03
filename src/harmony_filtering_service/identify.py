@@ -69,6 +69,13 @@ COLLECTION_REGEXES = [
         "level_group": 2,
         "version_group": 3
     },
+    {
+        "regex": r"(SWOT)_(L2)_LR_SSH_[A-Za-z]+_([A-Z]|\d+\.\d+)$",
+        "instrument_group": 1,
+        "product_type": "SWOT_L2_LR_SSH",
+        "level_group": 2,
+        "version_group": 3
+    },
 ]
 
 def identify_dataset(short_name: str, version_id: str | None) -> dict[str, str]:

@@ -634,5 +634,58 @@
         "excluded_variables": ["analysis_error", "mask", "sea_ice_fraction"]
       }
     }
+  },
+  "SWOT_L2_LR_SSH": {
+    "filters": {
+      "pixel_filter": [
+        {
+          "target_var": "ssh_karin",
+          "criteria_var": "ssh_karin_qual",
+          "operator": "not-equal-to",
+          "threshold": "0",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "ssh_karin",
+          "criteria_var": "height_cor_xover_qual",
+          "operator": "not-equal-to",
+          "threshold": "0",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "ssh_karin",
+          "criteria_var": "height_cor_xover",
+          "operator": "add",
+          "level": "all"
+        },
+        {
+          "target_var": "ssha_karin",
+          "criteria_var": "ssha_karin_qual",
+          "operator": "not-equal-to",
+          "threshold": "0",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "ssha_karin",
+          "criteria_var": "height_cor_xover_qual",
+          "operator": "not-equal-to",
+          "threshold": "0",
+          "target_value": "nan",
+          "level": "all"
+        },
+        {
+          "target_var": "ssha_karin",
+          "criteria_var": "height_cor_xover",
+          "operator": "add",
+          "level": "all"
+        }
+      ],
+      "variable_exclusion": {
+        "excluded_variables": ["ssh_karin", "ssha_karin", "ssh_karin_qual", "ssha_karin_qual", "height_cor_xover", "height_cor_xover_qual"]
+      }
+    }
   }
 }
